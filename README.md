@@ -1,146 +1,249 @@
 Galeri Karya Komputer
-Aplikasi berbasis Google Apps Script untuk mengelola galeri karya komputer siswa. Aplikasi menggunakan Google Sheets sebagai penyimpanan data terstruktur dan Google Drive sebagai tempat penyimpanan berkas karya yang diunggah.
-> Dokumentasi ini disusun berdasarkan kode backend `Code.gs` yang tersedia. Detail tampilan dan interaksi pada `Index.html` belum didokumentasikan karena kode frontend belum disertakan.
+Galeri Karya Komputer adalah aplikasi web berbasis Google Apps Script untuk mengelola data siswa, kelas, proyek pembelajaran komputer, dan karya yang dikumpulkan siswa. Aplikasi menggunakan React untuk antarmuka, Google Sheets untuk database, serta Google Drive untuk menyimpan file karya.
+Aplikasi menyediakan area kerja guru untuk mengelola siswa dan proyek, serta rancangan area siswa untuk mengakses tugas dan karya. Dokumentasi ini disusun dari dua sumber kode yang diberikan: `Code.gs` dan `Index.html`.
+> **Catatan kelengkapan kode:** pada `Index.html` yang diberikan, aplikasi memanggil komponen `StudentDashboard`, `StudentUpload`, dan `StudentGallery`, tetapi definisi ketiga komponen tersebut tidak ditemukan di dalam file. Karena itu, fitur tampilan dan alur siswa belum dapat dipastikan berjalan sampai komponen tersebut tersedia.
 Daftar Isi
-Gambaran Umum
+Fitur Aplikasi
 Teknologi
-Arsitektur Penyimpanan
+Arsitektur Aplikasi
 Struktur Database
-Fitur Backend
-Jenis Berkas
+Fitur Guru
+Area Siswa
+Pengelolaan File dan Scratch
+Sinkronisasi Data
 Instalasi dan Deployment
-Akun dan Data Awal
-Fungsi Backend
-Catatan Keamanan dan Pengembangan
-Gambaran Umum
-Galeri Karya Komputer dirancang sebagai tempat pengelolaan data kelas, pengguna, proyek, dan pengumpulan karya siswa. Backend menyediakan fungsi untuk:
-Menyiapkan tabel database pada Google Sheets secara otomatis.
-Membuat folder penyimpanan karya di Google Drive jika belum tersedia.
-Menambahkan, membaca, memperbarui, dan menghapus data.
-Menyimpan berkas submission ke Google Drive, bukan menaruh data Base64 berukuran besar di Google Sheets.
-Mengambil isi berkas dari Drive dalam bentuk Base64 untuk kebutuhan frontend, termasuk berkas proyek Scratch (`.sb3`).
+Akun Awal
+Daftar Fungsi Backend
+Preview Lokal
+Catatan Teknis dan Keamanan
+Fitur Aplikasi
+Login dengan pilihan peran guru atau siswa.
+Dashboard guru dengan ringkasan jumlah siswa, proyek, karya, dan siswa yang belum mengumpulkan tugas aktif.
+Manajemen data siswa: tambah, edit, cari, dan hapus.
+Import data siswa dari Excel (`.xlsx` / `.xls`) dan unduh template Excel.
+Pengelolaan proyek dengan target semua kelas atau beberapa kelas tertentu.
+Pengaturan instruksi, batas waktu, dan status proyek.
+Galeri karya siswa yang dapat difilter berdasarkan kelas.
+Tampilan grid karya dan pratinjau gambar.
+Penilaian karya menggunakan nilai dan catatan/feedback.
+Dukungan pengambilan dan pengunduhan file Scratch `.sb3`.
+Sinkronisasi data manual dan pemuatan ulang otomatis setiap 10 detik.
+Notifikasi status dan dialog konfirmasi tindakan.
+Panduan deployment Google Apps Script di dalam antarmuka.
 Teknologi
-Teknologi	Kegunaan
-Google Apps Script	Backend dan penghubung layanan Google
-Google Sheets	Penyimpanan data aplikasi
-Google Drive	Penyimpanan berkas karya
-HTML Service	Menyajikan halaman aplikasi dari `Index.html`
-JavaScript	Logika backend dan pengolahan data
-Arsitektur Penyimpanan
-Aplikasi menggunakan dua layanan utama:
-Google Sheets menyimpan data setiap koleksi dalam format dua kolom: `ID` dan `DATA_JSON`.
-Google Drive menyimpan berkas yang diunggah pada koleksi `submissions`. Data di Google Sheets menyimpan URL berkas Drive sebagai pengganti string Base64.
-Folder Drive yang digunakan bernama `Galeri_Komputer_Uploads`. ID folder disimpan pada Script Properties dengan nama `DB_FOLDER_ID`, sehingga folder yang sama dapat digunakan kembali pada eksekusi berikutnya.
+Teknologi	Peran
+Google Apps Script	Backend, Web App, dan akses layanan Google
+Google Sheets	Database untuk pengguna, kelas, proyek, dan submission
+Google Drive	Penyimpanan file karya yang diunggah
+HTML Service	Menyajikan `Index.html` sebagai halaman Web App
+React 18 dan ReactDOM	Antarmuka dan pengelolaan state
+Babel Standalone	Transformasi JSX di browser
+Tailwind CSS	Styling antarmuka
+xlsx-js-style	Membuat template Excel dan membaca file Excel
+Web Crypto API	Hash SHA-256 password pada proses login guru
+Library frontend dimuat melalui CDN pada `Index.html`.
+Arsitektur Aplikasi
+Aplikasi terdiri dari dua bagian utama:
+1. Backend — `Code.gs`
+Backend berjalan di Google Apps Script dan bertanggung jawab untuk:
+Menyajikan halaman melalui `doGet()`.
+Menyiapkan sheet database pada spreadsheet aktif.
+Membaca dan mengelola data melalui operasi CRUD.
+Membuat folder upload di Google Drive.
+Menyimpan file submission ke Drive dan menyimpan URL-nya di database.
+Mengambil isi file Drive dalam bentuk Base64 untuk kebutuhan frontend.
+2. Frontend — `Index.html`
+Frontend dibangun dengan React dan berkomunikasi dengan backend melalui `google.script.run`. Fungsi `callGas()` membungkus pemanggilan tersebut menjadi Promise dan menggunakan success handler serta failure handler.
+Alur data
+Halaman aplikasi dimuat oleh Google Apps Script.
+Frontend memanggil `getInitialData()` untuk mengambil data awal.
+Guru mengelola data siswa dan proyek melalui antarmuka.
+Data dikirim ke backend menggunakan `addDocument()`, `updateDocument()`, atau `deleteDocument()`.
+Saat file submission dikirim sebagai Data URL, backend mengunggah file ke Google Drive.
+Data submission beserta URL file disimpan di Google Sheets.
+Frontend memuat ulang data untuk menampilkan perubahan.
 Struktur Database
-Saat `getSpreadsheet()` dijalankan, aplikasi memastikan empat sheet berikut tersedia:
-Sheet	Keterangan
+Backend memastikan empat sheet tersedia di Google Spreadsheet:
+Sheet	Kegunaan
 `users`	Data akun guru dan siswa
 `classes`	Data kelas
 `projects`	Data proyek/tugas
 `submissions`	Data pengumpulan karya siswa
-Setiap sheet menggunakan struktur:
-Kolom	Isi
-`ID`	Identitas unik data
-`DATA_JSON`	Seluruh properti data dalam bentuk JSON
-Contoh ilustrasi satu baris data:
-ID	DATA_JSON
-`user-123`	`{"role":"siswa","name":"Andi","classId":"class-1"}`
-Properti di dalam `DATA_JSON` dapat berbeda sesuai jenis koleksinya. Fungsi `getInitialData()` membaca JSON dan menambahkan nilai kolom `ID` sebagai properti `id` pada objek yang dikembalikan.
-Fitur Backend
-1. Inisialisasi database otomatis
-Menggunakan spreadsheet tempat project Apps Script terpasang.
-Membuat sheet `users`, `classes`, `projects`, dan `submissions` jika belum ada.
-Menambahkan header `ID` dan `DATA_JSON`.
-Membekukan baris pertama sebagai header.
-Menghapus sheet bawaan `Sheet1` jika masih ada dan terdapat sheet lain.
-2. Pembuatan folder Google Drive otomatis
-Memeriksa ID folder dari Script Properties (`DB_FOLDER_ID`).
-Menggunakan folder yang sudah tersimpan jika masih dapat diakses.
-Membuat folder `Galeri_Komputer_Uploads` jika folder belum tersedia atau tidak dapat diakses.
-Menyimpan ID folder baru ke Script Properties.
-Perhatian: kode saat ini mengatur folder menjadi `ANYONE_WITH_LINK` dengan izin `VIEW`. Artinya, siapa pun yang memiliki tautan dapat melihat berkas di folder tersebut. Pertimbangkan risiko privasi karya dan identitas siswa sebelum menggunakan pengaturan ini.
-3. CRUD data
-Backend menyediakan operasi dasar:
-Create: menambahkan data baru melalui `addDocument()`.
-Read: mengambil seluruh data awal melalui `getInitialData()`.
-Update: memperbarui properti data melalui `updateDocument()`.
-Delete: menghapus baris data melalui `deleteDocument()`.
-4. Penyimpanan berkas submission
-Jika data yang ditambahkan ke koleksi `submissions` memiliki `fileData` berupa Data URL (`data:...`), backend akan:
-Mengambil MIME type dan isi Base64.
-Menentukan ekstensi berkas berdasarkan MIME type.
+Setiap sheet menggunakan dua kolom:
+Kolom	Keterangan
+`ID`	ID unik untuk setiap data
+`DATA_JSON`	Properti data yang disimpan dalam format JSON
+Contoh ilustrasi isi `DATA_JSON`:
+```json
+{
+  "role": "siswa",
+  "name": "Andi Saputra",
+  "classId": "class-1",
+  "pin": "1234"
+}
+```
+Objek aktual dapat memiliki properti tambahan sesuai koleksinya. Ketika data dibaca oleh `getInitialData()`, ID dari kolom pertama ditambahkan ke objek sebagai properti `id`.
+Relasi data utama
+Siswa pada `users` terhubung ke kelas melalui `classId`.
+Proyek pada `projects` memiliki target kelas melalui `classId` (dapat berupa `all`, satu ID kelas, atau array ID kelas).
+Submission pada `submissions` menghubungkan siswa melalui `studentId` dan proyek melalui `projectId`.
+Fitur Guru
+1. Dashboard
+Dashboard menampilkan ringkasan:
+Siswa Terdaftar: jumlah akun siswa.
+Total Project: jumlah proyek yang dibuat.
+Total Karya: jumlah submission yang tersimpan.
+Belum Kumpul (Aktif): perkiraan jumlah pengumpulan yang belum masuk untuk proyek berstatus aktif.
+Dashboard juga menampilkan aktivitas submission terbaru dan pintasan menuju pengelolaan proyek serta galeri.
+2. Data Siswa
+Guru dapat:
+Menambahkan siswa.
+Mengubah nama, kelas, dan PIN siswa.
+Mencari siswa berdasarkan nama.
+Menghapus satu siswa.
+Memilih beberapa siswa dan menghapusnya sekaligus.
+Mengunduh template Excel.
+Mengimpor data siswa dari file `.xlsx` atau `.xls`.
+Format kolom template Excel:
+Nama Siswa	Nama Kelas	PIN
+Andi Saputra	Kelas 5A	1234
+Budi Santoso	Kelas 5B	5678
+Saat import, aplikasi mencari kelas berdasarkan nama. Jika kelas belum tersedia, kelas baru dibuat. Jika siswa dengan nama dan kelas yang sama sudah ada, PIN siswa tersebut diperbarui; jika belum ada, akun siswa baru dibuat.
+3. Kelola Project
+Guru dapat membuat proyek dengan informasi:
+Judul project.
+Target kelas: semua kelas atau beberapa kelas.
+Instruksi pengerjaan.
+Batas waktu.
+Status project (`aktif` atau `selesai`).
+Daftar proyek dapat difilter berdasarkan folder kelas. Proyek yang ditujukan untuk semua kelas akan tetap ditampilkan pada folder kelas terkait.
+Guru dapat menutup proyek aktif dan membuka kembali proyek yang sudah selesai.
+4. Galeri Karya
+Guru dapat melihat submission dan memfilter karya berdasarkan kelas.
+Fitur galeri yang terlihat pada kode:
+Tampilan tabel submission.
+Tampilan grid untuk karya bergambar.
+Pratinjau karya dalam layar penuh.
+Navigasi karya sebelumnya dan berikutnya pada mode grid.
+Zoom in, zoom out, reset zoom, dan geser gambar ketika diperbesar.
+Membuka file asli melalui tautan file.
+Mengunduh file `.sb3` untuk kebutuhan proyek Scratch.
+Melihat daftar siswa yang belum mengumpulkan karya pada folder kelas tertentu.
+Pada tabel galeri, guru dapat mengisi:
+Nilai — input angka.
+Catatan — komentar atau feedback untuk siswa.
+Tombol Kirim menyimpan nilai dan catatan ke data submission. Tombol hapus menghapus data submission dari database.
+Area Siswa
+Pada navigasi utama, kode frontend mendefinisikan menu siswa:
+Dashboard.
+Upload Karya.
+Karya Saya.
+Namun, implementasi komponen `StudentDashboard`, `StudentUpload`, dan `StudentGallery` tidak ditemukan pada file `Index.html` yang diberikan. Menu tersebut sudah dipanggil pada proses render aplikasi, tetapi komponen perlu ditambahkan agar area siswa dapat berjalan.
+Login siswa yang tersedia meminta siswa memilih kelas, mencari dan memilih nama, lalu memasukkan PIN 4 angka.
+Pengelolaan File dan Scratch
+Upload file submission
+Pada backend `Code.gs`, jika data yang masuk ke koleksi `submissions` memiliki `fileData` berupa Data URL, backend akan:
+Membaca MIME type dan payload Base64.
+Menentukan ekstensi file.
 Membuat Blob dari data Base64.
-Mengunggah Blob ke folder Google Drive.
+Mengunggah file ke folder `Galeri_Komputer_Uploads` di Google Drive.
 Mengganti `fileData` dengan URL Google Drive.
-Menyimpan objek submission sebagai JSON di Google Sheets.
-Dengan demikian, isi berkas tidak disimpan langsung dalam satu sel Google Sheets.
-5. Dukungan berkas Scratch / TurboWarp
-Tersedia dua fungsi untuk mengambil berkas dari Google Drive:
-`getFileBase64(fileUrl)` — membaca byte berkas dan mengembalikannya sebagai Base64. Dapat digunakan frontend untuk kebutuhan pemuatan berkas.
-`getFileBase64ForDownload(fileUrl)` — mengambil byte berkas dan mengembalikannya sebagai Base64 untuk proses pengunduhan.
-Kedua fungsi menggunakan ID file yang diekstrak dari parameter `id` pada URL Drive.
-Jenis Berkas
-Kode backend memiliki penanganan ekstensi khusus berikut:
-MIME type / kondisi	Ekstensi yang digunakan
+Menyimpan data submission dalam `DATA_JSON` di Google Sheets.
+Ekstensi file yang ditangani backend
+Kondisi MIME type	Ekstensi
 Spreadsheet / Excel	`.xlsx`
 Presentation / PowerPoint	`.pptx`
 PDF	`.pdf`
 Octet-stream / Scratch	`.sb3`
-MIME type lainnya	Menggunakan subtipe MIME sebagai ekstensi, atau `.bin` jika kosong
-Ekstensi `.sb3` dipaksakan untuk MIME type yang mengandung `octet-stream` atau `scratch`. Pastikan tipe berkas yang dikirim frontend sesuai dengan berkas sebenarnya.
+Lainnya	Subtipe MIME atau `.bin`
+Pengolahan gambar di frontend
+`Index.html` menyediakan fungsi `compressImage()` yang:
+Membaca gambar sebagai Data URL.
+Mengubah ukuran maksimum menjadi 800 × 800 piksel dengan mempertahankan rasio.
+Menghasilkan gambar JPEG dengan kualitas 0,6.
+Fungsi ini tersedia pada frontend. Alur pemanggilannya perlu diperiksa bersama implementasi form upload yang lengkap.
+File Scratch `.sb3`
+Backend menyediakan fungsi `getFileBase64()` dan `getFileBase64ForDownload()` untuk mengambil byte file Drive dalam bentuk Base64.
+Pada galeri guru, fungsi `handleDownloadSb3()` menggunakan `getFileBase64ForDownload()` untuk membentuk kembali file Blob dan memicu pengunduhan dengan ekstensi `.sb3`.
+Sinkronisasi Data
+Frontend memuat data saat aplikasi pertama kali dibuka melalui `getInitialData()`.
+Selain itu:
+Tombol Sinkron Data memuat ulang data secara manual.
+Aplikasi menjalankan pemuatan ulang data di background setiap 10 detik.
+Data lokal pada state React diperbarui setelah operasi tambah, ubah, dan hapus berhasil.
+Interval 10 detik dimaksudkan agar perubahan data dari pengguna lain lebih cepat terlihat.
 Instalasi dan Deployment
 Persiapan
 Siapkan:
-Akun Google yang memiliki akses ke Google Sheets, Google Drive, dan Google Apps Script.
-Satu Google Spreadsheet sebagai database.
-File backend `Code.gs`.
-File HTML bernama `Index.html` untuk tampilan aplikasi.
-Langkah instalasi
-Buat Google Spreadsheet baru untuk database aplikasi.
-Buka Extensions → Apps Script dari spreadsheet tersebut agar project terikat pada spreadsheet.
-Masukkan kode backend ke file `Code.gs`.
-Buat file HTML bernama `Index` melalui Apps Script (+ → HTML) dan masukkan kode frontend.
-Simpan seluruh perubahan.
-Jalankan fungsi `getInitialData()` dari editor Apps Script untuk menginisialisasi sheet dan data awal. Saat pertama kali dijalankan, berikan izin akses yang diminta Google.
+Akun Google.
+Google Spreadsheet untuk database.
+Project Google Apps Script yang terikat pada spreadsheet tersebut.
+Source code `Code.gs`.
+Source code `Index.html`.
+Langkah pemasangan
+Buat Google Spreadsheet baru.
+Dari spreadsheet, buka Extensions → Apps Script agar project terikat pada spreadsheet tersebut.
+Masukkan kode backend terbaru ke file `Code.gs`.
+Buat file HTML bernama `Index` melalui tombol + → HTML.
+Tempel seluruh kode frontend ke file `Index.html`.
+Simpan project.
+Jalankan `getInitialData()` dari editor Apps Script untuk menginisialisasi database dan membuat data awal. Berikan izin akses Google yang diminta.
 Pilih Deploy → New deployment.
 Pilih jenis deployment Web app.
-Atur Execute as dan Who has access sesuai kebutuhan serta kebijakan privasi sekolah.
+Atur siapa yang menjalankan aplikasi dan siapa yang dapat mengaksesnya sesuai kebutuhan.
 Klik Deploy, selesaikan otorisasi, lalu buka URL Web App.
-> Nama file HTML harus `Index` pada Apps Script karena `doGet()` memanggil `HtmlService.createHtmlOutputFromFile('Index')`.
-Menjalankan ulang / memperbarui aplikasi
-Jika kode diperbarui, simpan perubahan lalu kelola deployment melalui Deploy → Manage deployments. Perbarui versi deployment yang digunakan agar perubahan tersedia pada Web App.
-Akun dan Data Awal
-Saat `getInitialData()` dijalankan dan koleksi `users` masih kosong, backend membuat data awal:
-Jenis	ID	Nama	Username / PIN
-Guru	`guru-1`	Admin Guru	Username: `admin`
-Siswa	`siswa-1`	Andi Saputra	PIN: `1234`
-Kelas	`class-1`	Kelas 5A	—
-Data akun guru menyimpan nilai password berupa hash SHA-256, bukan password teks biasa. Kode yang tersedia tidak memperlihatkan mekanisme login frontend, sehingga cara verifikasi password dan PIN perlu diperiksa pada `Index.html`.
-Penting: akun dan PIN di atas adalah data contoh bawaan. Ganti atau hapus kredensial contoh sebelum aplikasi digunakan secara nyata. Jangan membagikan kredensial admin kepada siswa.
-Fungsi Backend
-Fungsi	Keterangan
-`doGet()`	Menampilkan halaman HTML `Index` sebagai Web App
+`doGet()` memanggil `HtmlService.createHtmlOutputFromFile('Index')`, sehingga nama file HTML di Apps Script harus `Index`.
+Memperbarui deployment
+Setelah melakukan perubahan kode:
+Simpan perubahan pada Apps Script.
+Buka Deploy → Manage deployments.
+Edit deployment yang digunakan.
+Pilih versi terbaru, lalu lakukan deployment ulang.
+> **Penting:** gunakan backend `Code.gs` yang menggunakan Google Sheets dan Google Drive. Komponen `GasGuide` di dalam `Index.html` masih menampilkan contoh backend lama yang memakai `PropertiesService` sebagai database. Kode contoh tertanam tersebut tidak sama dengan backend terbaru dan jangan digunakan sebagai pengganti `Code.gs` yang diberikan.
+Akun Awal
+Backend `Code.gs` membuat data contoh ketika koleksi `users` masih kosong:
+Peran	Nama	Username / PIN
+Guru	Admin Guru	Username: `admin`
+Siswa	Andi Saputra	PIN: `1234`
+Kode backend menyimpan password guru dalam bentuk hash SHA-256. Pada mock preview lokal, komentar kode menyebut password contoh admin adalah `admin123`. Gunakan data akun yang tersimpan pada database sebagai acuan dan ubah kredensial contoh sebelum aplikasi digunakan secara nyata.
+Data kelas awal:
+`Kelas 5A`
+Daftar Fungsi Backend
+Fungsi	Kegunaan
+`doGet()`	Menampilkan halaman `Index` sebagai Web App
 `getSpreadsheet()`	Mengambil spreadsheet aktif dan memastikan sheet database tersedia
 `getUploadFolder()`	Mengambil atau membuat folder upload Google Drive
-`getInitialData()`	Membaca seluruh koleksi dan membuat data awal jika `users` kosong
-`addDocument(collection, data)`	Menambahkan data baru; mengunggah berkas submission jika berupa Data URL
+`getInitialData()`	Membaca data seluruh koleksi dan membuat data contoh jika `users` kosong
+`addDocument(collection, data)`	Menambahkan data baru dan menangani upload file submission
 `updateDocument(collection, id, data)`	Menggabungkan properti baru ke data lama berdasarkan ID
 `deleteDocument(collection, id)`	Menghapus baris data berdasarkan ID
-`getFileBase64(fileUrl)`	Mengambil isi berkas Drive dalam bentuk Base64
-`getFileBase64ForDownload(fileUrl)`	Mengambil isi berkas Drive dalam bentuk Base64 untuk diunduh
-Catatan Keamanan dan Pengembangan
-Sebelum aplikasi digunakan untuk data siswa sungguhan, perhatikan beberapa hal berikut:
-Akses file Drive: folder upload saat ini dibuat dapat diakses siapa pun yang memiliki tautan. Evaluasi apakah karya siswa boleh dibagikan secara publik. Batasi akses jika diperlukan.
-Autentikasi: pastikan proses login, penyimpanan password, dan pemeriksaan PIN di frontend/backend aman. Jangan mengandalkan penyembunyian elemen UI sebagai kontrol akses.
-Validasi input: validasi nama koleksi, ID, ukuran berkas, MIME type, dan isi data sebelum operasi database atau upload.
-Penghapusan berkas: `deleteDocument()` hanya menghapus baris pada Google Sheets. Fungsi ini tidak menghapus file terkait dari Google Drive. Perlu mekanisme tambahan jika file juga harus dihapus.
-Pembaruan data: `updateDocument()` mengembalikan `true` meskipun ID tidak ditemukan. Pertimbangkan mengembalikan status yang menunjukkan apakah data benar-benar diperbarui.
-Penanganan error: beberapa fungsi menangkap error dan mengembalikan `null` atau mengabaikan JSON yang gagal dibaca. Tambahkan pencatatan error agar masalah lebih mudah ditelusuri.
-Kinerja dan konkurensi: operasi baca/tulis menggunakan Google Sheets secara langsung. Untuk penggunaan banyak pengguna, pertimbangkan `LockService`, pembatasan ukuran data, dan optimasi pembacaan/penulisan.
-Integritas data: `getInitialData()` membuat seluruh data contoh ketika koleksi `users` kosong. Pastikan kondisi database sudah benar sebelum menjalankannya pada data produksi.
-Validasi URL: fungsi pembaca file mengambil ID dari parameter `id`. Pastikan URL berasal dari file yang memang boleh diakses oleh aplikasi.
+`getFileBase64(fileUrl)`	Mengambil byte file Drive dalam bentuk Base64
+`getFileBase64ForDownload(fileUrl)`	Mengambil byte file Drive dalam bentuk Base64 untuk proses download
+Preview Lokal
+`Index.html` memiliki mock environment untuk preview lokal ketika objek `google` tidak tersedia.
+Mock ini:
+Meniru sebagian fungsi `google.script.run`.
+Menyimpan data pada browser menggunakan `localStorage`.
+Menyediakan mock untuk `getInitialData`, `addDocument`, `updateDocument`, dan `deleteDocument`.
+Menambahkan akun admin, kelas contoh, dan siswa contoh jika belum tersedia.
+Memberi jeda sekitar 400 ms untuk mensimulasikan komunikasi server.
+Batasan preview lokal:
+Data tersimpan pada browser/perangkat yang digunakan, bukan pada Google Sheets.
+Upload ke Google Drive dan fungsi pengambilan file Base64 tidak disimulasikan oleh mock yang tersedia.
+Preview lokal tidak menggantikan pengujian deployment Google Apps Script sebenarnya.
+Catatan Teknis dan Keamanan
+Akses Google Drive: `getUploadFolder()` mengatur folder upload menjadi `ANYONE_WITH_LINK` dengan izin `VIEW`. Siapa pun yang memiliki tautan dapat melihat file. Pertimbangkan privasi karya dan data siswa sebelum menggunakan pengaturan ini.
+Kredensial contoh: ganti password admin dan PIN contoh sebelum penggunaan nyata. Jangan membagikan kredensial admin kepada siswa.
+Pemeriksaan akses: proses login pada frontend memeriksa data akun yang dimuat ke browser. Untuk aplikasi yang menyimpan data siswa, pertimbangkan validasi otorisasi pada backend untuk setiap operasi penting.
+Validasi input: validasi nama koleksi, ID, ukuran file, MIME type, dan isi data pada backend sebelum menyimpan atau menghapus data.
+Hapus submission: `deleteDocument()` menghapus baris data pada Google Sheets, tetapi tidak menghapus file terkait dari Google Drive. File Drive dapat tertinggal setelah submission dihapus.
+Penanganan error: beberapa fungsi backend mengembalikan `true` meskipun ID tidak ditemukan. Pertimbangkan mengembalikan status operasi yang lebih akurat.
+Kinerja: penggunaan Google Sheets secara langsung dapat menjadi lambat jika data dan jumlah pengguna bertambah. Pertimbangkan optimasi pembacaan/penulisan dan `LockService` untuk mengurangi risiko benturan operasi.
+Kuota layanan: perhatikan kuota Google Apps Script, Google Sheets, dan Google Drive, khususnya ketika banyak siswa mengunggah file.
+Komponen siswa: lengkapi definisi `StudentDashboard`, `StudentUpload`, dan `StudentGallery` sebelum mengaktifkan penggunaan area siswa.
+Panduan deployment tertanam: kode backend di `GasGuide` masih merupakan contoh lama berbasis `PropertiesService`; selalu gunakan file `Code.gs` terbaru yang menjadi backend aplikasi ini.
 Lisensi
-Belum ditentukan. Tambahkan informasi lisensi jika proyek ini akan dibagikan atau dipublikasikan secara terbuka.
+Lisensi proyek belum ditentukan. Tambahkan file atau keterangan lisensi jika aplikasi akan dibagikan atau dipublikasikan secara terbuka.
 ---
 Galeri Karya Komputer  
-Dokumentasi backend berdasarkan implementasi Google Apps Script.
+Dokumentasi berdasarkan source code `Code.gs` dan `Index.html`.
